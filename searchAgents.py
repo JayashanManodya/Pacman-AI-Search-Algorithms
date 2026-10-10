@@ -490,7 +490,57 @@ def foodHeuristic(state: Tuple[Tuple, List[List]], problem: FoodSearchProblem):
     """
     position, foodGrid = state
     "*** YOUR CODE HERE ***"
-    return 0
+    foodList = foodGrid.asList()
+    if not foodList:
+        return 0
+
+    if 'distances' not in problem.heuristicInfo:
+        from collections import deque
+        walls = problem.walls
+        width, height = walls.width, walls.height
+        distances = {}
+        for x in range(width):
+            for y in range(height):
+                if not walls[x][y]:
+                    start = (x, y)
+                    dist_map = {start: 0}
+                    q = deque([start])
+                    while q:
+                        cx, cy = q.popleft()
+                        cd = dist_map[(cx, cy)]
+                        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                            nx, ny = cx + dx, cy + dy
+                            if 0 <= nx < width and 0 <= ny < height and not walls[nx][ny]:
+                                neighbor = (nx, ny)
+                                if neighbor not in dist_map:
+                                    dist_map[neighbor] = cd + 1
+                                    q.append(neighbor)
+                    distances[start] = dist_map
+        problem.heuristicInfo['distances'] = distances
+
+    distances = problem.heuristicInfo['distances']
+    pos_dists = distances.get(position, {})
+    min_to_food = min(pos_dists.get(f, float('inf')) for f in foodList)
+
+    if len(foodList) <= 1:
+        return min_to_food
+
+    # Prim's algorithm to compute MST of remaining food dots
+    unvisited = set(foodList[1:])
+    curr = foodList[0]
+    min_edge_to_tree = {f: distances.get(curr, {}).get(f, float('inf')) for f in unvisited}
+    mst_cost = 0
+
+    while unvisited:
+        best_f = min(unvisited, key=lambda f: min_edge_to_tree[f])
+        mst_cost += min_edge_to_tree[best_f]
+        unvisited.remove(best_f)
+        for f in unvisited:
+            edge = distances.get(best_f, {}).get(f, float('inf'))
+            if edge < min_edge_to_tree[f]:
+                min_edge_to_tree[f] = edge
+
+    return min_to_food + mst_cost
 
 class ClosestDotSearchAgent(SearchAgent):
     "Search for all food using a sequence of searches"
@@ -521,7 +571,7 @@ class ClosestDotSearchAgent(SearchAgent):
         problem = AnyFoodSearchProblem(gameState)
 
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return search.bfs(problem)
 
 class AnyFoodSearchProblem(PositionSearchProblem):
     """
@@ -557,7 +607,7 @@ class AnyFoodSearchProblem(PositionSearchProblem):
         x,y = state
 
         "*** YOUR CODE HERE ***"
-        util.raiseNotDefined()
+        return self.food[x][y]
 
 def mazeDistance(point1: Tuple[int, int], point2: Tuple[int, int], gameState: pacman.GameState) -> int:
     """
